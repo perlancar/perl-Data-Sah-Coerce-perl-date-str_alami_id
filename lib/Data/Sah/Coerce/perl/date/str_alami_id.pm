@@ -14,11 +14,11 @@ our $time_zone;
 
 sub meta {
     +{
-        v => 2,
+        v => 3,
         enable_by_default => 0,
-        might_die => 1,
+        might_fail => 1,
         prio => 60, # a bit lower than normal
-        precludes => [qr/\Astr_alami(_.+)?\z/, 'str_natural'],
+        precludes => [qr/\Astr_alami(_.+)?\z/, 'str_natural', 'str_flexible'],
     };
 }
 
@@ -34,12 +34,12 @@ sub coerce {
     $res->{modules}{"DateTime::Format::Alami::ID"} //= 0;
     $res->{expr_coerce} = join(
         "",
-        "do { my \$res = DateTime::Format::Alami::ID->new->parse_datetime($dt, {_time_zone => ".dmp($time_zone)."}); ",
-        ($coerce_to eq 'float(epoch)' ? "\$res = \$res->epoch; " :
-             $coerce_to eq 'Time::Moment' ? "\$res = Time::Moment->from_object(\$res); " :
-             $coerce_to eq 'DateTime' ? "" :
+        "do { my \$datetime; eval { \$datetime = DateTime::Format::Alami::ID->new->parse_datetime($dt, {_time_zone => ".dmp($time_zone)."}) }; my \$err = \$@; ",
+        ($coerce_to eq 'float(epoch)' ? "if (\$err) { \$err =~ s/ at .+//s; [\$err] } else { [undef, \$datetime->epoch ] } " :
+             $coerce_to eq 'Time::Moment' ? "if (\$err) { \$err =~ s/ at .+//s; [\$err] } else { [undef, Time::Moment->from_object(\$datetime) ] } " :
+             $coerce_to eq 'DateTime' ? "if (\$err) { \$err =~ s/ at .+//s; [\$err] } else { [undef, \$datetime] } " :
              (die "BUG: Unknown coerce_to '$coerce_to'")),
-        "\$res }",
+        "}",
     );
 
     $res;
